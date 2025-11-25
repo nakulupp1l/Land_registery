@@ -88,7 +88,7 @@ contract Land {
         // -------------------------------------------------------
         // FIXED: This is now a valid Ethereum Address (Account 0)
         // -------------------------------------------------------
-        Land_Inspector = 0xf49f581DA1CC38FC3FD8247e86A3Ae16a0C3e766; 
+        Land_Inspector = 0x7D476Fe99d0a981714541Cd63B762aF7Dbb10De7; 
         
         addLandInspector("Inspector 1", 45, "Tehsil Manager");
     }

@@ -1,7 +1,7 @@
 // ==========================================
 // 1. CONFIGURATION
 // ==========================================
-const contractAddress = "0x5DA073C2Ad5e22eA8C1d0973E9DE04ad19189818"; // YOUR ADDRESS
+const contractAddress = "0xd6152cCE63A0303641e48Dd8a78789a2329E8F73"; // YOUR ADDRESS
 
 // ==========================================
 // 2. ABI
@@ -72,12 +72,12 @@ async function checkIfAdmin() {
         const isAdmin = await contract.methods.isLandInspector(userAccount).call();
         if (isAdmin) {
             document.getElementById("adminPanel").style.display = "block";
-            // NEW: Hide User Actions
-            document.getElementById("userActions").style.display = "none";
+            // Hide User Actions for Admin
+            document.getElementById("userActions").style.display = "none"; 
             loadAdminRequests();
         } else {
             document.getElementById("adminPanel").style.display = "none";
-            // NEW: Show User Actions
+            // Show User Actions for non-Admin
             document.getElementById("userActions").style.display = "block";
         }
     } catch (e) { console.error("Admin check error", e); }
@@ -128,79 +128,116 @@ async function approveRequestAuto(reqId) {
 }
 
 // ==========================================
-// 5. SMART ADMIN INBOX
+// 5. SMART ADMIN INBOX (FIXED DISPLAY)
 // ==========================================
 async function loadAdminRequests() {
     const tbodyVerify = document.getElementById("verificationTableBody");
     const tbodyTransfer = document.getElementById("transferTableBody");
     
+    // Clear previous content
+    tbodyVerify.innerHTML = "<tr><td colspan='3' class='text-center text-muted'>Scanning Blockchain...</td></tr>";
+    tbodyTransfer.innerHTML = "<tr><td colspan='4' class='text-center text-muted'>Scanning Blockchain...</td></tr>";
+
     let verifyRows = "";
     let pendingVerCount = 0;
 
-    // Scan Sellers
-    const sellers = await contract.methods.getSeller().call();
-    for(let i=0; i<sellers.length; i++) {
-        const isVer = await contract.methods.isVerified(sellers[i]).call();
-        if(!isVer) {
-            verifyRows += `<tr>
-                <td><span class="badge bg-primary">Seller</span></td>
-                <td class="text-white-50 font-monospace small">${sellers[i]}</td>
-                <td class="text-end"><button class="btn btn-sm btn-success" onclick="verifySellerAuto('${sellers[i]}')">Verify</button></td>
-            </tr>`;
-            pendingVerCount++;
+    // --- A. VERIFICATION REQUESTS ---
+    
+    // 1. Scan Sellers
+    try {
+        const sellers = await contract.methods.getSeller().call();
+        for(let i=0; i<sellers.length; i++) {
+            const isVer = await contract.methods.isVerified(sellers[i]).call();
+            if(!isVer) {
+                verifyRows += `<tr>
+                    <td><span class="badge bg-primary">Seller</span></td>
+                    <td><code class="text-info fw-bold">${sellers[i]}</code></td>
+                    <td class="text-end"><button class="btn btn-sm btn-success rounded-pill" onclick="verifySellerAuto('${sellers[i]}')">Verify <i class="fas fa-check"></i></button></td>
+                </tr>`;
+                pendingVerCount++;
+            }
         }
-    }
-    // Scan Buyers
-    const buyers = await contract.methods.getBuyer().call();
-    for(let i=0; i<buyers.length; i++) {
-        const isVer = await contract.methods.isVerified(buyers[i]).call();
-        if(!isVer) {
-            verifyRows += `<tr>
-                <td><span class="badge bg-info text-dark">Buyer</span></td>
-                <td class="text-white-50 font-monospace small">${buyers[i]}</td>
-                <td class="text-end"><button class="btn btn-sm btn-success" onclick="verifyBuyerAuto('${buyers[i]}')">Verify</button></td>
-            </tr>`;
-            pendingVerCount++;
+    } catch(e) { console.error("Error loading sellers", e); }
+
+    // 2. Scan Buyers
+    try {
+        const buyers = await contract.methods.getBuyer().call();
+        for(let i=0; i<buyers.length; i++) {
+            const isVer = await contract.methods.isVerified(buyers[i]).call();
+            if(!isVer) {
+                verifyRows += `<tr>
+                    <td><span class="badge bg-success">Buyer</span></td>
+                    <td><code class="text-info fw-bold">${buyers[i]}</code></td>
+                    <td class="text-end"><button class="btn btn-sm btn-success rounded-pill" onclick="verifyBuyerAuto('${buyers[i]}')">Verify <i class="fas fa-check"></i></button></td>
+                </tr>`;
+                pendingVerCount++;
+            }
         }
+    } catch(e) { console.error("Error loading buyers", e); }
+
+    // Update Verify Table
+    if(pendingVerCount === 0) {
+        tbodyVerify.innerHTML = "<tr><td colspan='3' class='text-center text-muted py-3'>No pending verifications</td></tr>";
+    } else {
+        tbodyVerify.innerHTML = verifyRows;
     }
-    tbodyVerify.innerHTML = verifyRows || "<tr><td colspan='3' class='text-center text-secondary small py-3'>No pending verifications</td></tr>";
     document.getElementById("badgeVerify").innerText = pendingVerCount;
 
-    // Scan Transfers
-    const landsCount = await contract.methods.getLandsCount().call();
-    const requestsCount = await contract.methods.getRequestsCount().call();
+
+    // --- B. TRANSFER REQUESTS ---
+    
     let transferRows = "";
     let pendingTransCount = 0;
 
-    for(let i=1; i<=landsCount; i++) {
-        const isPaid = await contract.methods.isPaid(i).call();
-        if(isPaid) {
-            const currentOwner = await contract.methods.getLandOwner(i).call();
-            const isOwnerSeller = await contract.methods.isSeller(currentOwner).call();
+    try {
+        const landsCount = await contract.methods.getLandsCount().call();
+        const requestsCount = await contract.methods.getRequestsCount().call();
+
+        for(let i=1; i<=landsCount; i++) {
+            const isPaid = await contract.methods.isPaid(i).call();
             
-            if (isOwnerSeller) {
-                let buyerAddress = "Unknown";
-                for(let k=1; k<=requestsCount; k++) {
-                    const req = await contract.methods.getRequestDetails(k).call();
-                    if (req[2] == i && req[3] == true) { 
-                        buyerAddress = req[1];
-                        break; 
+            if(isPaid) {
+                const currentOwner = await contract.methods.getLandOwner(i).call();
+                const isOwnerSeller = await contract.methods.isSeller(currentOwner).call();
+                
+                // If Paid AND Owner is still Seller (Not Transferred)
+                if (isOwnerSeller) {
+                    let buyerAddress = "Unknown";
+                    
+                    // Find the approved request
+                    for(let k=1; k<=requestsCount; k++) {
+                        const req = await contract.methods.getRequestDetails(k).call();
+                        // req[2] = landId, req[3] = approved
+                        if (req[2] == i && req[3] == true) { 
+                            buyerAddress = req[1];
+                        }
+                    }
+
+                    // Generate Row
+                    if(buyerAddress !== "Unknown") {
+                        transferRows += `<tr>
+                            <td><span class="fw-bold text-white">#${i}</span></td>
+                            <td><span class="badge bg-warning text-dark">Payment Received</span></td>
+                            <td><code class="text-info">${buyerAddress}</code></td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-danger rounded-pill" onclick="transferOwnershipAuto(${i}, '${buyerAddress}')">
+                                    Transfer Title <i class="fas fa-file-signature"></i>
+                                </button>
+                            </td>
+                        </tr>`;
+                        pendingTransCount++;
                     }
                 }
-
-                transferRows += `<tr>
-                    <td class="fw-bold text-white">#${i}</td>
-                    <td><span class="badge bg-success">Paid</span></td>
-                    <td class="text-white-50 font-monospace small">${buyerAddress}</td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-danger" onclick="transferOwnershipAuto(${i}, '${buyerAddress}')">Transfer Title</button>
-                    </td>
-                </tr>`;
-                pendingTransCount++;
             }
         }
+    } catch(e) { console.error("Error scanning transfers", e); }
+
+    // Update Transfer Table
+    if(pendingTransCount === 0) {
+        tbodyTransfer.innerHTML = "<tr><td colspan='4' class='text-center text-muted py-3'>No pending transfers</td></tr>";
+    } else {
+        tbodyTransfer.innerHTML = transferRows;
     }
-    tbodyTransfer.innerHTML = transferRows || "<tr><td colspan='4' class='text-center text-secondary small py-3'>No pending transfers</td></tr>";
     document.getElementById("badgeTransfer").innerText = pendingTransCount;
 }
 
