@@ -54,13 +54,16 @@ contract Land {
     mapping(address => Buyer) public BuyerMapping;
     mapping(uint => LandRequest) public RequestsMapping;
 
-    mapping(address => bool) public RegisteredAddressMapping;
+    // REMOVED GLOBAL BLOCKER: mapping(address => bool) public RegisteredAddressMapping;
+    
     mapping(address => bool) public RegisteredSellerMapping;
     mapping(address => bool) public RegisteredBuyerMapping;
+    
     mapping(address => bool) public SellerVerification;
     mapping(address => bool) public SellerRejection;
     mapping(address => bool) public BuyerVerification;
     mapping(address => bool) public BuyerRejection;
+    
     mapping(uint => bool) public LandVerification;
     mapping(uint => address) public LandOwner;
     mapping(uint => bool) public RequestStatus;
@@ -98,6 +101,7 @@ contract Land {
         InspectorMapping[inspectorsCount] = LandInspector(inspectorsCount, _name, _age, _designation);
     }
 
+    // --- GETTERS ---
     function getLandsCount() public view returns (uint) {
         return landsCount;
     }
@@ -150,6 +154,7 @@ contract Land {
         return LandOwner[id];
     }
 
+    // --- VERIFICATION FUNCTIONS ---
     function verifySeller(address _sellerId) public{
         require(isLandInspector(msg.sender));
         SellerVerification[_sellerId] = true;
@@ -179,6 +184,7 @@ contract Land {
         LandVerification[_landId] = true;
     }
 
+    // --- CHECKER FUNCTIONS ---
     function isLandVerified(uint _id) public view returns (bool) {
         if(LandVerification[_id]){
             return true;
@@ -216,14 +222,20 @@ contract Land {
             return true;
         }
     }
+    
+    // Helper function to check if address is registered in ANY capacity
     function isRegistered(address _id) public view returns (bool) {
-        if(RegisteredAddressMapping[_id]){
+        if(RegisteredSellerMapping[_id] || RegisteredBuyerMapping[_id]){
             return true;
         }
     }
 
+    // --- CORE LOGIC ---
+
     function addLand(uint _area, string memory _city,string memory _state, uint landPrice, uint _propertyPID,uint _surveyNum,string memory _ipfsHash, string memory _document) public {
-        require((isSeller(msg.sender)) && (isVerified(msg.sender)));
+        // Requirement: Must be a registered Seller AND be Verified by Admin
+        require((isSeller(msg.sender)) && (SellerVerification[msg.sender]));
+        
         landsCount++;
         lands[landsCount] = Landreg(landsCount, _area, _city, _state, landPrice,_propertyPID, _surveyNum, _ipfsHash, _document);
         LandOwner[landsCount] = msg.sender;
@@ -231,8 +243,9 @@ contract Land {
     }
 
     function registerSeller(string memory _name, uint _age, string memory _aadharNumber, string memory _panNumber, string memory _landsOwned, string memory _document) public {
-        require(!RegisteredAddressMapping[msg.sender]);
-        RegisteredAddressMapping[msg.sender] = true;
+        // CHANGED: Only check if already a SELLER. Ignore Buyer status.
+        require(!RegisteredSellerMapping[msg.sender], "Already registered as Seller");
+
         RegisteredSellerMapping[msg.sender] = true ;
         sellersCount++;
         SellerMapping[msg.sender] = Seller(msg.sender, _name, _age, _aadharNumber,_panNumber, _landsOwned, _document);
@@ -241,7 +254,7 @@ contract Land {
     }
 
     function updateSeller(string memory _name, uint _age, string memory _aadharNumber, string memory _panNumber, string memory _landsOwned) public {
-        require(RegisteredAddressMapping[msg.sender] && (SellerMapping[msg.sender].id == msg.sender));
+        require(RegisteredSellerMapping[msg.sender] && (SellerMapping[msg.sender].id == msg.sender));
         SellerMapping[msg.sender].name = _name;
         SellerMapping[msg.sender].age = _age;
         SellerMapping[msg.sender].aadharNumber = _aadharNumber;
@@ -258,8 +271,9 @@ contract Land {
     }
 
     function registerBuyer(string memory _name, uint _age, string memory _city, string memory _aadharNumber, string memory _panNumber, string memory _document, string memory _email) public {
-        require(!RegisteredAddressMapping[msg.sender]);
-        RegisteredAddressMapping[msg.sender] = true;
+        // CHANGED: Only check if already a BUYER. Ignore Seller status.
+        require(!RegisteredBuyerMapping[msg.sender], "Already registered as Buyer");
+
         RegisteredBuyerMapping[msg.sender] = true ;
         buyersCount++;
         BuyerMapping[msg.sender] = Buyer(msg.sender, _name, _age, _city, _aadharNumber, _panNumber, _document, _email);
@@ -268,7 +282,7 @@ contract Land {
     }
 
     function updateBuyer(string memory _name,uint _age, string memory _city,string memory _aadharNumber, string memory _email, string memory _panNumber) public {
-        require(RegisteredAddressMapping[msg.sender] && (BuyerMapping[msg.sender].id == msg.sender));
+        require(RegisteredBuyerMapping[msg.sender] && (BuyerMapping[msg.sender].id == msg.sender));
         BuyerMapping[msg.sender].name = _name;
         BuyerMapping[msg.sender].age = _age;
         BuyerMapping[msg.sender].city = _city;
@@ -286,7 +300,9 @@ contract Land {
     }
 
     function requestLand(address _sellerId, uint _landId) public{
-        require(isBuyer(msg.sender) && isVerified(msg.sender));
+        // Requirement: Must be a registered Buyer AND Verified
+        require(isBuyer(msg.sender) && BuyerVerification[msg.sender], "Buyer not verified");
+        
         requestsCount++;
         RequestsMapping[requestsCount] = LandRequest(requestsCount, _sellerId, msg.sender, _landId);
         RequestStatus[requestsCount] = false;
@@ -311,7 +327,9 @@ contract Land {
     }
 
     function approveRequest(uint _reqId) public {
-        require((isSeller(msg.sender)) && (isVerified(msg.sender)));
+        // Requirement: Must be a registered Seller AND Verified
+        require((isSeller(msg.sender)) && (SellerVerification[msg.sender]), "Seller not verified");
+        
         RequestStatus[_reqId] = true;
     }
 

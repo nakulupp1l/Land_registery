@@ -1,7 +1,7 @@
 // ==========================================
 // 1. CONFIGURATION
 // ==========================================
-const contractAddress = "0xd6152cCE63A0303641e48Dd8a78789a2329E8F73"; // YOUR ADDRESS
+const contractAddress = "0x0c51Dc1ff5E26542C8E665de47eB66D1E5DbE184"; // YOUR ADDRESS
 
 // ==========================================
 // 2. ABI
